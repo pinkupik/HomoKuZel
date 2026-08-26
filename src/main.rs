@@ -61,6 +61,18 @@ fn run_export(project_path: &str, output_path: &str, with_grid: bool) -> anyhow:
     Ok(())
 }
 
+const LOGO_BYTES: &[u8] = include_bytes!("../assets/app_logo.jpg");
+
+fn load_icon() -> Option<egui::IconData> {
+    let img = image::load_from_memory(LOGO_BYTES).ok()?.into_rgba8();
+    let (width, height) = img.dimensions();
+    Some(egui::IconData {
+        rgba: img.into_raw(),
+        width,
+        height,
+    })
+}
+
 fn main() -> anyhow::Result<()> {
     let mut args: Vec<String> = std::env::args().collect();
 
@@ -84,10 +96,16 @@ fn main() -> anyhow::Result<()> {
 
     let initial_image = args.get(1).map(PathBuf::from);
 
+    let mut viewport = egui::ViewportBuilder::default()
+        .with_inner_size([1400.0, 900.0])
+        .with_title("ConeFlattener 3000 - Formula Student Birdseye Tool");
+
+    if let Some(icon) = load_icon() {
+        viewport = viewport.with_icon(icon);
+    }
+
     let native_options = eframe::NativeOptions {
-        viewport: egui::ViewportBuilder::default()
-            .with_inner_size([1400.0, 900.0])
-            .with_title("ConeFlattener 3000 - Formula Student Birdseye Tool"),
+        viewport,
         ..Default::default()
     };
 
