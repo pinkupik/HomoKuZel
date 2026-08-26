@@ -17,19 +17,15 @@ jobs:
           # Apple Silicon macOS (M1/M2/M3/M4)
           - os: macos-14
             target: aarch64-apple-darwin
-            artifact_name: birdseye_tool-macos-arm64
-          # Intel macOS
-          - os: macos-13
-            target: x86_64-apple-darwin
-            artifact_name: birdseye_tool-macos-x64
+            artifact_name: ConeFlattener-macOS-AppleSilicon
           # Windows
           - os: windows-latest
             target: x86_64-pc-windows-msvc
-            artifact_name: birdseye_tool-windows-x64.exe
+            artifact_name: ConeFlattener-Windows-x64
           # Linux
           - os: ubuntu-latest
             target: x86_64-unknown-linux-gnu
-            artifact_name: birdseye_tool-linux-x64
+            artifact_name: ConeFlattener-Linux-x64
 
     steps:
       - uses: actions/checkout@v4
@@ -48,7 +44,45 @@ jobs:
       - name: Build release binary
         run: cargo build --release --target ${{ matrix.target }}
 
-      - name: Upload Binary Artifact
+      - name: Package macOS .app Bundle
+        if: runner.os == 'macOS'
+        run: |
+          mkdir -p "ConeFlattener.app/Contents/MacOS"
+          mkdir -p "ConeFlattener.app/Contents/Resources"
+          cp "target/${{ matrix.target }}/release/birdseye_tool" "ConeFlattener.app/Contents/MacOS/ConeFlattener"
+          chmod +x "ConeFlattener.app/Contents/MacOS/ConeFlattener"
+          cat << 'EOF' > "ConeFlattener.app/Contents/Info.plist"
+          <?xml version="1.0" encoding="UTF-8"?>
+          <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+          <plist version="1.0">
+          <dict>
+              <key>CFBundleExecutable</key>
+              <string>ConeFlattener</string>
+              <key>CFBundleIdentifier</key>
+              <string>com.formulastudent.coneflattener</string>
+              <key>CFBundleName</key>
+              <string>ConeFlattener</string>
+              <key>CFBundlePackageType</key>
+              <string>APPL</string>
+              <key>CFBundleShortVersionString</key>
+              <string>0.1.0</string>
+              <key>NSHighResolutionCapable</key>
+              <true/>
+          </dict>
+          </plist>
+          EOF
+          codesign --force --deep -s - "ConeFlattener.app"
+          zip -r "ConeFlattener-macOS-AppleSilicon.zip" "ConeFlattener.app"
+
+      - name: Upload macOS Bundle
+        if: runner.os == 'macOS'
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.artifact_name }}
+          path: ConeFlattener-macOS-AppleSilicon.zip
+
+      - name: Upload Windows / Linux Binary
+        if: runner.os != 'macOS'
         uses: actions/upload-artifact@v4
         with:
           name: ${{ matrix.artifact_name }}
