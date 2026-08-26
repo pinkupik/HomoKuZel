@@ -8,8 +8,12 @@ use crate::project::{PointRecord, Project};
 use crate::warp::{self, BirdseyeParams};
 
 const HANDLE_RADIUS: f32 = 6.0;
+const LOGO_BYTES: &[u8] = include_bytes!("../assets/app_logo.jpg");
 
 pub struct BirdseyeApp {
+    // logo texture
+    logo_texture: Option<TextureHandle>,
+
     // source image
     image_path: Option<PathBuf>,
     src_image: Option<RgbaImage>,
@@ -52,6 +56,7 @@ pub struct BirdseyeApp {
 impl Default for BirdseyeApp {
     fn default() -> Self {
         Self {
+            logo_texture: None,
             image_path: None,
             src_image: None,
             src_texture: None,
@@ -82,6 +87,14 @@ impl Default for BirdseyeApp {
 impl BirdseyeApp {
     pub fn new(cc: &eframe::CreationContext<'_>, initial_file: Option<PathBuf>) -> Self {
         let mut app = Self::default();
+
+        if let Ok(img) = image::load_from_memory(LOGO_BYTES) {
+            let rgba = img.into_rgba8();
+            let (w, h) = rgba.dimensions();
+            let color_image = ColorImage::from_rgba_unmultiplied([w as usize, h as usize], rgba.as_raw());
+            app.logo_texture = Some(cc.egui_ctx.load_texture("app_logo", color_image, TextureOptions::LINEAR));
+        }
+
         if let Some(path) = initial_file {
             let is_json = path
                 .extension()
@@ -249,6 +262,9 @@ impl BirdseyeApp {
         egui::TopBottomPanel::top("toolbar").show(ctx, |ui| {
             ui.add_space(2.0);
             ui.horizontal_wrapped(|ui| {
+                ui.label(egui::RichText::new("🦅 ConeFlattener 3000").strong().color(Color32::from_rgb(255, 170, 50)));
+                ui.separator();
+
                 // Open Image button
                 if ui.button("📂 Open Image...").on_hover_text("Open drone photo (PNG, JPG, etc.)").clicked() {
                     let mut dialog = rfd::FileDialog::new()
@@ -410,7 +426,51 @@ impl BirdseyeApp {
         });
 
         let Some(texture) = self.src_texture.clone() else {
-            ui.centered_and_justified(|ui| ui.label("No image loaded."));
+            ui.centered_and_justified(|ui| {
+                ui.vertical_centered(|ui| {
+                    ui.add_space(20.0);
+                    if let Some(ref logo) = self.logo_texture {
+                        ui.image((logo.id(), egui::vec2(180.0, 180.0)));
+                    }
+                    ui.add_space(8.0);
+                    ui.heading(egui::RichText::new("🦅 ConeFlattener 3000").size(24.0).strong().color(Color32::from_rgb(255, 170, 50)));
+                    ui.label(egui::RichText::new("Formula Student Drone-to-Birdseye Track Map Rectifier").italics().color(Color32::from_gray(180)));
+                    ui.add_space(16.0);
+
+                    ui.horizontal(|ui| {
+                        if ui.button(egui::RichText::new("📂 Open Drone Photo").size(15.0)).clicked() {
+                            let dialog = rfd::FileDialog::new()
+                                .set_title("Open Drone Photo")
+                                .add_filter("Image Files", &["png", "jpg", "jpeg", "bmp", "webp", "tiff"]);
+                            if let Some(path) = dialog.pick_file() {
+                                if let Err(e) = self.load_image(ui.ctx(), &path) {
+                                    self.status = format!("Failed to load {}: {e}", path.display());
+                                }
+                            }
+                        }
+                        if ui.button(egui::RichText::new("📁 Load Project").size(15.0)).clicked() {
+                            let dialog = rfd::FileDialog::new()
+                                .set_title("Load Calibration Project")
+                                .add_filter("Birdseye Project (*.json)", &["json"]);
+                            if let Some(path) = dialog.pick_file() {
+                                if let Err(e) = self.load_project(ui.ctx(), &path) {
+                                    self.status = format!("Load failed: {e}");
+                                }
+                            }
+                        }
+                    });
+
+                    ui.add_space(20.0);
+                    ui.group(|ui| {
+                        ui.set_max_width(440.0);
+                        ui.label(egui::RichText::new("🏁 Quick Start:").strong().color(Color32::from_rgb(255, 200, 80)));
+                        ui.label("1. Drag & drop a drone photo here (or click Open).");
+                        ui.label("2. Left-click 4+ known points on track (cones, markings).");
+                        ui.label("3. Type real-world coords in metres (Tab to move, Enter to add).");
+                        ui.label("4. Check live error & Export rectified PNG for map_editor!");
+                    });
+                });
+            });
             return;
         };
 

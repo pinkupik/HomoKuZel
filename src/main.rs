@@ -85,12 +85,14 @@ fn main() -> anyhow::Result<()> {
     let initial_image = args.get(1).map(PathBuf::from);
 
     let native_options = eframe::NativeOptions {
-        viewport: egui::ViewportBuilder::default().with_inner_size([1400.0, 900.0]),
+        viewport: egui::ViewportBuilder::default()
+            .with_inner_size([1400.0, 900.0])
+            .with_title("ConeFlattener 3000 - Formula Student Birdseye Tool"),
         ..Default::default()
     };
 
     eframe::run_native(
-        "Formula Student Birdseye Tool",
+        "ConeFlattener 3000 - Formula Student Birdseye Tool",
         native_options,
         Box::new(|cc| Box::new(app::BirdseyeApp::new(cc, initial_image))),
     )
