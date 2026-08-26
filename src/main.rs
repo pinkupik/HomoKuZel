@@ -98,7 +98,7 @@ fn main() -> anyhow::Result<()> {
 
     let mut viewport = egui::ViewportBuilder::default()
         .with_inner_size([1400.0, 900.0])
-        .with_title("ConeFlattener 3000 - Formula Student Birdseye Tool");
+        .with_title("HomoKuŽel");
 
     if let Some(icon) = load_icon() {
         viewport = viewport.with_icon(icon);
@@ -110,7 +110,7 @@ fn main() -> anyhow::Result<()> {
     };
 
     eframe::run_native(
-        "ConeFlattener 3000 - Formula Student Birdseye Tool",
+        "HomoKuŽel",
         native_options,
         Box::new(|cc| Box::new(app::BirdseyeApp::new(cc, initial_image))),
     )

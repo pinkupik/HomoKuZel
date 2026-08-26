@@ -1,11 +1,8 @@
-# birdseye_tool
+# 🔷 HomoKuŽel
+*(Formula Student Drone-to-Birdseye Track Map Rectifier)*
 
-Interactive Rust rewrite of `skidpad_birdseye.py`: click reference points on a
-drone/angled photo, edit their real-world (X, Y) coordinates in a live table,
-and watch the metric bird's-eye rectification update in real time on the
-other side of the window. Built for pulling cone-map-ready backgrounds out of
-drone shots of prebuilt Formula Student tracks, feeding straight into your
-`map_editor.py` background-image workflow.
+Interactive Rust tool to convert angled drone shots of Formula Student tracks into
+centimetre-accurate, metric bird's-eye backgrounds ready for `map_editor.py` and cone tracking.
 
 ## Status
 
