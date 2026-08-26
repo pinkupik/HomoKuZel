@@ -37,10 +37,10 @@ WSLg or any other X11/XWayland setup.
 
 ```bash
 # GUI, optionally pre-loading an image
-./target/release/birdseye_tool path/to/drone_photo.jpg
+./target/release/homokuzel path/to/drone_photo.jpg
 
-# Headless export from a saved project — no window, for GitLab CI
-./target/release/birdseye_tool export project.json output.png --grid
+# Headless export from a saved project — no window, for CI pipelines
+./target/release/homokuzel export project.json output.png --grid
 ```
 
 ## Using it

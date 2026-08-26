@@ -49,8 +49,9 @@ jobs:
         run: |
           mkdir -p "HomoKuZel.app/Contents/MacOS"
           mkdir -p "HomoKuZel.app/Contents/Resources"
-          cp "target/${{ matrix.target }}/release/birdseye_tool" "HomoKuZel.app/Contents/MacOS/HomoKuZel"
+          cp "target/${{ matrix.target }}/release/homokuzel" "HomoKuZel.app/Contents/MacOS/HomoKuZel"
           chmod +x "HomoKuZel.app/Contents/MacOS/HomoKuZel"
+          sips -s format icns assets/app_logo.jpg --out "HomoKuZel.app/Contents/Resources/icon.icns" || true
           cat << 'EOF' > "HomoKuZel.app/Contents/Info.plist"
           <?xml version="1.0" encoding="UTF-8"?>
           <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
@@ -58,6 +59,8 @@ jobs:
           <dict>
               <key>CFBundleExecutable</key>
               <string>HomoKuZel</string>
+              <key>CFBundleIconFile</key>
+              <string>icon</string>
               <key>CFBundleIdentifier</key>
               <string>com.formulastudent.homokuzel</string>
               <key>CFBundleName</key>
@@ -72,14 +75,13 @@ jobs:
           </plist>
           EOF
           codesign --force --deep -s - "HomoKuZel.app"
-          zip -r "HomoKuZel-macOS-AppleSilicon.zip" "HomoKuZel.app"
 
       - name: Upload macOS Bundle
         if: runner.os == 'macOS'
         uses: actions/upload-artifact@v4
         with:
           name: ${{ matrix.artifact_name }}
-          path: HomoKuZel-macOS-AppleSilicon.zip
+          path: HomoKuZel.app
 
       - name: Upload Windows / Linux Binary
         if: runner.os != 'macOS'
@@ -87,5 +89,5 @@ jobs:
         with:
           name: ${{ matrix.artifact_name }}
           path: |
-            target/${{ matrix.target }}/release/birdseye_tool
-            target/${{ matrix.target }}/release/birdseye_tool.exe
+            target/${{ matrix.target }}/release/homokuzel
+            target/${{ matrix.target }}/release/homokuzel.exe

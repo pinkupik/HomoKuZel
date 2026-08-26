@@ -9,13 +9,13 @@ use std::path::PathBuf;
 
 fn print_usage() {
     eprintln!(
-        "birdseye_tool - interactive drone-photo -> metric birdseye rectifier\n\
+        "HomoKuŽel - interactive drone-photo -> metric birdseye rectifier\n\
          \n\
          USAGE:\n\
-         \x20   birdseye_tool [image.jpg]\n\
+         \x20   homokuzel [image.jpg]\n\
          \x20       Launch the GUI, optionally pre-loading an image.\n\
          \n\
-         \x20   birdseye_tool export <project.json> [output.png] [--grid]\n\
+         \x20   homokuzel export <project.json> [output.png] [--grid]\n\
          \x20       Headless mode: recompute the homography from a saved project\n\
          \x20       and write the birdseye PNG. No window is opened. Intended for\n\
          \x20       CI pipelines that regenerate maps whenever a project file or\n\
