@@ -47,12 +47,12 @@ jobs:
       - name: Package macOS .app Bundle
         if: runner.os == 'macOS'
         run: |
-          mkdir -p "HomoKuZel.app/Contents/MacOS"
-          mkdir -p "HomoKuZel.app/Contents/Resources"
-          cp "target/${{ matrix.target }}/release/homokuzel" "HomoKuZel.app/Contents/MacOS/HomoKuZel"
-          chmod +x "HomoKuZel.app/Contents/MacOS/HomoKuZel"
-          sips -s format icns assets/app_logo.jpg --out "HomoKuZel.app/Contents/Resources/icon.icns" || true
-          cat << 'EOF' > "HomoKuZel.app/Contents/Info.plist"
+          mkdir -p "dist/HomoKuZel.app/Contents/MacOS"
+          mkdir -p "dist/HomoKuZel.app/Contents/Resources"
+          cp "target/${{ matrix.target }}/release/homokuzel" "dist/HomoKuZel.app/Contents/MacOS/HomoKuZel"
+          chmod +x "dist/HomoKuZel.app/Contents/MacOS/HomoKuZel"
+          sips -s format icns assets/app_logo.jpg --out "dist/HomoKuZel.app/Contents/Resources/icon.icns" || true
+          cat << 'EOF' > "dist/HomoKuZel.app/Contents/Info.plist"
           <?xml version="1.0" encoding="UTF-8"?>
           <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
           <plist version="1.0">
@@ -74,14 +74,14 @@ jobs:
           </dict>
           </plist>
           EOF
-          codesign --force --deep -s - "HomoKuZel.app"
+          codesign --force --deep -s - "dist/HomoKuZel.app"
 
       - name: Upload macOS Bundle
         if: runner.os == 'macOS'
         uses: actions/upload-artifact@v4
         with:
           name: ${{ matrix.artifact_name }}
-          path: HomoKuZel.app
+          path: dist/HomoKuZel.app
 
       - name: Upload Windows / Linux Binary
         if: runner.os != 'macOS'
