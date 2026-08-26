@@ -1,5 +1,4 @@
-# 🔷 HomoKuŽel
-*(Formula Student Drone-to-Birdseye Track Map Rectifier)*
+# HomoKuŽel
 
 Interactive Rust tool to convert angled drone shots of Formula Student tracks into
 centimetre-accurate, metric bird's-eye backgrounds ready for `map_editor.py` and cone tracking.

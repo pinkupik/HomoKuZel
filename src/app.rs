@@ -262,7 +262,7 @@ impl BirdseyeApp {
         egui::TopBottomPanel::top("toolbar").show(ctx, |ui| {
             ui.add_space(2.0);
             ui.horizontal_wrapped(|ui| {
-                ui.label(egui::RichText::new("🔷 HomoKuŽel").strong().color(Color32::from_rgb(80, 160, 255)));
+                ui.label(egui::RichText::new("HomoKuŽel").strong().color(Color32::from_rgb(80, 160, 255)));
                 ui.separator();
 
                 // Open Image button
@@ -432,9 +432,8 @@ impl BirdseyeApp {
                     if let Some(ref logo) = self.logo_texture {
                         ui.image((logo.id(), egui::vec2(180.0, 180.0)));
                     }
-                    ui.add_space(8.0);
-                    ui.heading(egui::RichText::new("🔷 HomoKuŽel").size(24.0).strong().color(Color32::from_rgb(80, 160, 255)));
-                    ui.label(egui::RichText::new("Formula Student Drone-to-Birdseye Track Map Rectifier").italics().color(Color32::from_gray(180)));
+                    ui.add_space(10.0);
+                    ui.heading(egui::RichText::new("HomoKuŽel").size(26.0).strong().color(Color32::from_rgb(80, 160, 255)));
                     ui.add_space(16.0);
 
                     ui.horizontal(|ui| {
