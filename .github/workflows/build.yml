@@ -47,12 +47,12 @@ jobs:
       - name: Package macOS .app Bundle
         if: runner.os == 'macOS'
         run: |
-          mkdir -p "dist/HomoKuZel.app/Contents/MacOS"
-          mkdir -p "dist/HomoKuZel.app/Contents/Resources"
-          cp "target/${{ matrix.target }}/release/homokuzel" "dist/HomoKuZel.app/Contents/MacOS/HomoKuZel"
-          chmod +x "dist/HomoKuZel.app/Contents/MacOS/HomoKuZel"
-          sips -s format icns assets/app_logo.jpg --out "dist/HomoKuZel.app/Contents/Resources/icon.icns" || true
-          cat << 'EOF' > "dist/HomoKuZel.app/Contents/Info.plist"
+          mkdir -p "HomoKuZel.app/Contents/MacOS"
+          mkdir -p "HomoKuZel.app/Contents/Resources"
+          cp "target/${{ matrix.target }}/release/homokuzel" "HomoKuZel.app/Contents/MacOS/HomoKuZel"
+          chmod +x "HomoKuZel.app/Contents/MacOS/HomoKuZel"
+          sips -s format icns assets/app_logo.jpg --out "HomoKuZel.app/Contents/Resources/icon.icns" || true
+          cat << 'PLIST' > "HomoKuZel.app/Contents/Info.plist"
           <?xml version="1.0" encoding="UTF-8"?>
           <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
           <plist version="1.0">
@@ -73,21 +73,29 @@ jobs:
               <true/>
           </dict>
           </plist>
-          EOF
-          codesign --force --deep -s - "dist/HomoKuZel.app"
+          PLIST
+          codesign --force --deep -s - "HomoKuZel.app"
+          # zip it ourselves so the .app folder name is preserved in the archive
+          zip -r "HomoKuZel-macOS.zip" "HomoKuZel.app"
 
       - name: Upload macOS Bundle
         if: runner.os == 'macOS'
         uses: actions/upload-artifact@v4
         with:
           name: ${{ matrix.artifact_name }}
-          path: dist/HomoKuZel.app
+          # upload the zip FILE (not the directory) so artifact download preserves .app structure
+          path: HomoKuZel-macOS.zip
 
-      - name: Upload Windows / Linux Binary
-        if: runner.os != 'macOS'
+      - name: Upload Windows Binary
+        if: runner.os == 'Windows'
         uses: actions/upload-artifact@v4
         with:
           name: ${{ matrix.artifact_name }}
-          path: |
-            target/${{ matrix.target }}/release/homokuzel
-            target/${{ matrix.target }}/release/homokuzel.exe
+          path: target/${{ matrix.target }}/release/homokuzel.exe
+
+      - name: Upload Linux Binary
+        if: runner.os == 'Linux'
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.artifact_name }}
+          path: target/${{ matrix.target }}/release/homokuzel

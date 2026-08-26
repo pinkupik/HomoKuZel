@@ -307,7 +307,7 @@ impl BirdseyeApp {
                     if ui.button("💾 Save Project...").on_hover_text("Save points and calibration settings to JSON").clicked() {
                         let mut dialog = rfd::FileDialog::new()
                             .set_title("Save Calibration Project")
-                            .add_filter("Birdseye Project (*.json)", &["json"])
+                            .add_filter("HomoKuŽel Project (*.json)", &["json"])
                             .set_file_name(
                                 self.project_path
                                     .as_ref()
@@ -338,7 +338,7 @@ impl BirdseyeApp {
                 if ui.button("📁 Load Project...").on_hover_text("Load a saved calibration project (.json)").clicked() {
                     let mut dialog = rfd::FileDialog::new()
                         .set_title("Load Calibration Project")
-                        .add_filter("Birdseye Project (*.json)", &["json"]);
+                        .add_filter("HomoKuŽel Project (*.json)", &["json"]);
                     if let Some(ref p) = self.project_path.as_ref().or(self.image_path.as_ref()) {
                         if let Some(parent) = p.parent() {
                             dialog = dialog.set_directory(parent);
@@ -372,7 +372,7 @@ impl BirdseyeApp {
                         let mut dialog = rfd::FileDialog::new()
                             .set_title("Export Birdseye Image")
                             .add_filter("PNG Image (*.png)", &["png"])
-                            .set_file_name("birdseye_output.png");
+                            .set_file_name("homokuzel_output.png");
                         if let Some(ref p) = self.image_path {
                             if let Some(parent) = p.parent() {
                                 dialog = dialog.set_directory(parent);
@@ -450,7 +450,7 @@ impl BirdseyeApp {
                         if ui.button(egui::RichText::new("📁 Load Project").size(15.0)).clicked() {
                             let dialog = rfd::FileDialog::new()
                                 .set_title("Load Calibration Project")
-                                .add_filter("Birdseye Project (*.json)", &["json"]);
+                                .add_filter("HomoKuŽel Project (*.json)", &["json"]);
                             if let Some(path) = dialog.pick_file() {
                                 if let Err(e) = self.load_project(ui.ctx(), &path) {
                                     self.status = format!("Load failed: {e}");

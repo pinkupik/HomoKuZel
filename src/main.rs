@@ -87,7 +87,7 @@ fn main() -> anyhow::Result<()> {
             std::process::exit(1);
         }
         let project_path = &args[2];
-        let output_path = args.get(3).map(String::as_str).unwrap_or("birdseye_output.png");
+        let output_path = args.get(3).map(String::as_str).unwrap_or("homokuzel_output.png");
         return run_export(project_path, output_path, with_grid);
     }
 
