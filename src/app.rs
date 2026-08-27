@@ -464,9 +464,9 @@ impl BirdseyeApp {
                         ui.set_max_width(440.0);
                         ui.label(egui::RichText::new("🏁 Quick Start:").strong().color(Color32::from_rgb(255, 200, 80)));
                         ui.label("1. Drag & drop a drone photo here (or click Open).");
-                        ui.label("2. Left-click 4+ known points on track (cones, markings).");
+                        ui.label("2. Left-click 4+ points with known real-world positions.");
                         ui.label("3. Type real-world coords in metres (Tab to move, Enter to add).");
-                        ui.label("4. Check live error & Export rectified PNG for map_editor!");
+                        ui.label("4. Check live error & export the rectified PNG.");
                     });
                 });
             });

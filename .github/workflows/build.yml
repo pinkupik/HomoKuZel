@@ -62,7 +62,7 @@ jobs:
               <key>CFBundleIconFile</key>
               <string>icon</string>
               <key>CFBundleIdentifier</key>
-              <string>com.formulastudent.homokuzel</string>
+              <string>com.homokuzel.app</string>
               <key>CFBundleName</key>
               <string>HomoKuŽel</string>
               <key>CFBundlePackageType</key>
