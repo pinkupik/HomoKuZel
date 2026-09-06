@@ -6,6 +6,8 @@ Built in Rust with [egui](https://github.com/emilk/egui).
 
 ## Features
 
+- **Multi-image tabs** — work with multiple drone photos in parallel within the same session
+- **Merged map & fine-tuning** — stitch overlapping photos onto a unified metric world canvas with interactive offset (X/Y), rotation, scale, and opacity adjustments
 - **Live preview** — the rectified output updates instantly as you add, move, or edit points
 - **Per-point error feedback** — color-coded reprojection error (green < 5 cm, yellow < 20 cm, red beyond) so bad clicks are obvious at a glance
 - **Native file dialogs** — open images, save/load projects (.json), export output via OS file pickers
@@ -76,7 +78,7 @@ Projects are saved as JSON containing the image path, point coordinates, and exp
 cargo test
 ```
 
-Two unit tests verify the homography solver against synthetic ground-truth data (4-point minimal case and 8-point overdetermined case), both asserting sub-micrometre reprojection error.
+Unit tests verify the homography solver against synthetic ground-truth data (4-point minimal case and 8-point overdetermined case) and the multi-layer transformation matrices and extents.
 
 ## License
 

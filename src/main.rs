@@ -26,39 +26,109 @@ fn print_usage() {
 
 fn run_export(project_path: &str, output_path: &str, with_grid: bool) -> anyhow::Result<()> {
     let project = project::Project::load(std::path::Path::new(project_path))?;
-    let src = image::open(&project.image_path)?.into_rgba8();
+    let proj_dir = std::path::Path::new(project_path).parent();
 
-    let correspondences: Vec<homography::Correspondence> = project
-        .points
-        .iter()
-        .map(|p| homography::Correspondence { pixel: (p.pixel_u, p.pixel_v), world: (p.world_x, p.world_y) })
+    if project.tabs.is_empty() {
+        anyhow::bail!("Project has no image tabs");
+    }
+
+    let mut loaded_images = Vec::new();
+    let mut homographies = Vec::new();
+    let mut extents = Vec::new();
+    let mut valid_tabs = Vec::new();
+
+    for tab in &project.tabs {
+        let Some(img_path) = &tab.image_path else {
+            continue;
+        };
+        let resolved_path = if img_path.is_absolute() || img_path.exists() {
+            img_path.clone()
+        } else if let Some(parent) = proj_dir {
+            let candidate = parent.join(img_path);
+            if candidate.exists() {
+                candidate
+            } else {
+                img_path.clone()
+            }
+        } else {
+            img_path.clone()
+        };
+
+        let src = match image::open(&resolved_path) {
+            Ok(img) => img.into_rgba8(),
+            Err(e) => {
+                eprintln!("Warning: failed to open {}: {e}", resolved_path.display());
+                continue;
+            }
+        };
+
+        let correspondences: Vec<homography::Correspondence> = tab
+            .points
+            .iter()
+            .map(|p| homography::Correspondence {
+                pixel: (p.pixel_u, p.pixel_v),
+                world: (p.world_x, p.world_y),
+            })
+            .collect();
+
+        if correspondences.len() < 4 {
+            continue;
+        }
+
+        let result = match homography::solve_homography(&correspondences) {
+            Ok(r) => r,
+            Err(e) => {
+                eprintln!("Warning: homography failed for {}: {e}", tab.name);
+                continue;
+            }
+        };
+
+        let Some(h_world_to_img) = result.h_world_to_img else {
+            continue;
+        };
+        let (w, h) = src.dimensions();
+        let extent = warp::compute_extent(w, h, &result.h_img_to_world);
+
+        loaded_images.push(src);
+        homographies.push(h_world_to_img);
+        extents.push(extent);
+        valid_tabs.push(tab);
+    }
+
+    if loaded_images.is_empty() {
+        anyhow::bail!("No calibrated layers available to export (each needs >= 4 points)");
+    }
+
+    let layer_inputs: Vec<warp::MergeLayerInput<'_>> = (0..loaded_images.len())
+        .map(|i| warp::MergeLayerInput {
+            src: &loaded_images[i],
+            h_world_to_img: &homographies[i],
+            extent_unmargined: &extents[i],
+            adjustment: &valid_tabs[i].adjustment,
+        })
         .collect();
 
-    let result = homography::solve_homography(&correspondences)?;
-    let h_world_to_img = result
-        .h_world_to_img
-        .ok_or_else(|| anyhow::anyhow!("homography is singular"))?;
-
-    let (w, h) = src.dimensions();
-    let extent = warp::compute_extent(w, h, &result.h_img_to_world);
     let params = warp::BirdseyeParams {
         pixels_per_meter: project.pixels_per_meter,
         margin_m: project.margin_m,
         max_canvas_dim: 8000,
     };
-    let mut output = warp::warp_to_birdseye(&src, &h_world_to_img, &extent, &params);
+
+    let mut output = warp::composite_merged_map(&layer_inputs, &params)
+        .ok_or_else(|| anyhow::anyhow!("Failed to composite map"))?;
+
     if with_grid {
         warp::draw_grid_overlay(&mut output.image, &output.extent, output.effective_ppm);
     }
+
     output.image.save(output_path)?;
 
     println!(
-        "Wrote {output_path}  ({}x{} px @ {:.2} px/m)  RMS error = {:.1} cm, max = {:.1} cm",
+        "Wrote {output_path} ({}x{} px @ {:.2} px/m) from {} layers",
         output.image.width(),
         output.image.height(),
         output.effective_ppm,
-        result.rms_error * 100.0,
-        result.max_error * 100.0,
+        layer_inputs.len(),
     );
     Ok(())
 }

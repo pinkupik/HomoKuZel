@@ -7,6 +7,7 @@ use image::{Rgba, RgbaImage};
 use nalgebra::{Matrix3, Vector3};
 use rayon::prelude::*;
 
+#[derive(Debug, Clone, Copy)]
 pub struct WorldExtent {
     pub x_min: f64,
     pub x_max: f64,
@@ -209,3 +210,257 @@ fn blend_pixel(image: &mut RgbaImage, x: u32, y: u32, color: Rgba<u8>) {
     out[3] = 255;
     image.put_pixel(x, y, Rgba(out));
 }
+
+use crate::project::LayerAdjustment;
+
+pub struct MergeLayerInput<'a> {
+    pub src: &'a RgbaImage,
+    pub h_world_to_img: &'a Matrix3<f64>,
+    pub extent_unmargined: &'a WorldExtent,
+    pub adjustment: &'a LayerAdjustment,
+}
+
+/// Computes the affine transform matrix M that applies scale, rotation around the layer centroid,
+/// and translation offsets in world space:
+///   P_global = M * P_local_world
+pub fn compute_layer_adjustment_matrix(
+    extent: &WorldExtent,
+    adj: &LayerAdjustment,
+) -> Matrix3<f64> {
+    let xc = (extent.x_min + extent.x_max) * 0.5;
+    let yc = (extent.y_min + extent.y_max) * 0.5;
+    let theta = adj.rotation_deg.to_radians();
+    let cos_t = theta.cos();
+    let sin_t = theta.sin();
+    let s = adj.scale.max(0.001);
+
+    let tx = xc + adj.offset_x - s * (xc * cos_t - yc * sin_t);
+    let ty = yc + adj.offset_y - s * (xc * sin_t + yc * cos_t);
+
+    Matrix3::new(
+        s * cos_t, -s * sin_t, tx,
+        s * sin_t,  s * cos_t, ty,
+        0.0,        0.0,       1.0,
+    )
+}
+
+/// Computes the world bounding box of a layer after applying its adjustment transform.
+pub fn compute_adjusted_extent(
+    extent: &WorldExtent,
+    adj: &LayerAdjustment,
+) -> WorldExtent {
+    let m = compute_layer_adjustment_matrix(extent, adj);
+    let corners = [
+        Vector3::new(extent.x_min, extent.y_min, 1.0),
+        Vector3::new(extent.x_max, extent.y_min, 1.0),
+        Vector3::new(extent.x_max, extent.y_max, 1.0),
+        Vector3::new(extent.x_min, extent.y_max, 1.0),
+    ];
+    let mut x_min = f64::INFINITY;
+    let mut x_max = f64::NEG_INFINITY;
+    let mut y_min = f64::INFINITY;
+    let mut y_max = f64::NEG_INFINITY;
+    for c in corners {
+        let p = m * c;
+        let x = p.x / p.z;
+        let y = p.y / p.z;
+        x_min = x_min.min(x);
+        x_max = x_max.max(x);
+        y_min = y_min.min(y);
+        y_max = y_max.max(y);
+    }
+    WorldExtent { x_min, x_max, y_min, y_max }
+}
+
+/// Composites multiple calibrated, rectified layers onto a unified metric world canvas.
+pub fn composite_merged_map(
+    layers: &[MergeLayerInput<'_>],
+    params: &BirdseyeParams,
+) -> Option<BirdseyeOutput> {
+    let active_layers: Vec<_> = layers.iter().filter(|l| l.adjustment.enabled).collect();
+    if active_layers.is_empty() {
+        return None;
+    }
+
+    let mut global_x_min = f64::INFINITY;
+    let mut global_x_max = f64::NEG_INFINITY;
+    let mut global_y_min = f64::INFINITY;
+    let mut global_y_max = f64::NEG_INFINITY;
+
+    let mut layer_m_invs = Vec::with_capacity(active_layers.len());
+
+    for layer in &active_layers {
+        let adj_extent = compute_adjusted_extent(layer.extent_unmargined, layer.adjustment);
+        global_x_min = global_x_min.min(adj_extent.x_min);
+        global_x_max = global_x_max.max(adj_extent.x_max);
+        global_y_min = global_y_min.min(adj_extent.y_min);
+        global_y_max = global_y_max.max(adj_extent.y_max);
+
+        let m = compute_layer_adjustment_matrix(layer.extent_unmargined, layer.adjustment);
+        let m_inv = m.try_inverse().unwrap_or_else(Matrix3::identity);
+        layer_m_invs.push(m_inv);
+    }
+
+    let x_min = global_x_min - params.margin_m;
+    let x_max = global_x_max + params.margin_m;
+    let y_min = global_y_min - params.margin_m;
+    let y_max = global_y_max + params.margin_m;
+
+    let mut canvas_w = ((x_max - x_min) * params.pixels_per_meter).round() as i64;
+    let mut canvas_h = ((y_max - y_min) * params.pixels_per_meter).round() as i64;
+    let mut effective_ppm = params.pixels_per_meter;
+
+    if canvas_w > params.max_canvas_dim as i64
+        || canvas_h > params.max_canvas_dim as i64
+        || canvas_w <= 0
+        || canvas_h <= 0
+    {
+        let scale_fix = params.max_canvas_dim as f64 / (canvas_w.max(canvas_h).max(1) as f64);
+        canvas_w = (canvas_w as f64 * scale_fix).max(1.0) as i64;
+        canvas_h = (canvas_h as f64 * scale_fix).max(1.0) as i64;
+        effective_ppm *= scale_fix;
+    }
+    let canvas_w = canvas_w as u32;
+    let canvas_h = canvas_h as u32;
+
+    // S: global world -> canvas
+    let s = Matrix3::new(
+        effective_ppm, 0.0, -x_min * effective_ppm,
+        0.0, -effective_ppm, y_max * effective_ppm,
+        0.0, 0.0, 1.0,
+    );
+    let s_inv = s.try_inverse().expect("similarity transform is always invertible");
+
+    struct LayerSampler<'a> {
+        src: &'a RgbaImage,
+        src_w: u32,
+        src_h: u32,
+        canvas_to_img: Matrix3<f64>,
+        opacity: f64,
+    }
+
+    let samplers: Vec<LayerSampler> = active_layers
+        .iter()
+        .zip(layer_m_invs.iter())
+        .map(|(layer, m_inv)| {
+            let canvas_to_img = layer.h_world_to_img * m_inv * s_inv;
+            let (src_w, src_h) = layer.src.dimensions();
+            let opacity = (layer.adjustment.opacity.clamp(0.0, 1.0)) as f64;
+            LayerSampler {
+                src: layer.src,
+                src_w,
+                src_h,
+                canvas_to_img,
+                opacity,
+            }
+        })
+        .collect();
+
+    let mut out = RgbaImage::new(canvas_w, canvas_h);
+
+    out.enumerate_rows_mut().par_bridge().for_each(|(_y, row)| {
+        for (cx, cy, pixel) in row {
+            let pos_vec = Vector3::new(cx as f64 + 0.5, cy as f64 + 0.5, 1.0);
+
+            let mut dst_r = 0.0;
+            let mut dst_g = 0.0;
+            let mut dst_b = 0.0;
+            let mut dst_a = 0.0;
+
+            for sampler in &samplers {
+                if sampler.opacity <= 0.0 {
+                    continue;
+                }
+                let p = sampler.canvas_to_img * pos_vec;
+                let (u, v) = (p.x / p.z, p.y / p.z);
+                let color = bilinear_sample(sampler.src, sampler.src_w, sampler.src_h, u, v);
+                let src_a = (color.0[3] as f64 / 255.0) * sampler.opacity;
+                if src_a <= 0.0 {
+                    continue;
+                }
+
+                let src_r = color.0[0] as f64;
+                let src_g = color.0[1] as f64;
+                let src_b = color.0[2] as f64;
+
+                let out_a = src_a + dst_a * (1.0 - src_a);
+                if out_a > 0.0 {
+                    dst_r = (src_r * src_a + dst_r * dst_a * (1.0 - src_a)) / out_a;
+                    dst_g = (src_g * src_a + dst_g * dst_a * (1.0 - src_a)) / out_a;
+                    dst_b = (src_b * src_a + dst_b * dst_a * (1.0 - src_a)) / out_a;
+                }
+                dst_a = out_a;
+            }
+
+            if dst_a > 0.0 {
+                *pixel = Rgba([
+                    dst_r.round().clamp(0.0, 255.0) as u8,
+                    dst_g.round().clamp(0.0, 255.0) as u8,
+                    dst_b.round().clamp(0.0, 255.0) as u8,
+                    (dst_a * 255.0).round().clamp(0.0, 255.0) as u8,
+                ]);
+            } else {
+                *pixel = Rgba([0, 0, 0, 0]);
+            }
+        }
+    });
+
+    Some(BirdseyeOutput {
+        image: out,
+        extent: WorldExtent { x_min, x_max, y_min, y_max },
+        effective_ppm,
+    })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn layer_adjustment_identity() {
+        let extent = WorldExtent {
+            x_min: 0.0,
+            x_max: 10.0,
+            y_min: 0.0,
+            y_max: 20.0,
+        };
+        let adj = LayerAdjustment::default();
+        let m = compute_layer_adjustment_matrix(&extent, &adj);
+        let adj_ext = compute_adjusted_extent(&extent, &adj);
+
+        assert!((m[(0, 0)] - 1.0).abs() < 1e-6);
+        assert!((m[(1, 1)] - 1.0).abs() < 1e-6);
+        assert!((m[(0, 2)] - 0.0).abs() < 1e-6);
+        assert!((m[(1, 2)] - 0.0).abs() < 1e-6);
+
+        assert!((adj_ext.x_min - extent.x_min).abs() < 1e-6);
+        assert!((adj_ext.x_max - extent.x_max).abs() < 1e-6);
+        assert!((adj_ext.y_min - extent.y_min).abs() < 1e-6);
+        assert!((adj_ext.y_max - extent.y_max).abs() < 1e-6);
+    }
+
+    #[test]
+    fn layer_adjustment_translation() {
+        let extent = WorldExtent {
+            x_min: 0.0,
+            x_max: 10.0,
+            y_min: 0.0,
+            y_max: 20.0,
+        };
+        let adj = LayerAdjustment {
+            enabled: true,
+            offset_x: 5.0,
+            offset_y: -3.0,
+            rotation_deg: 0.0,
+            scale: 1.0,
+            opacity: 1.0,
+        };
+        let adj_ext = compute_adjusted_extent(&extent, &adj);
+
+        assert!((adj_ext.x_min - 5.0).abs() < 1e-6);
+        assert!((adj_ext.x_max - 15.0).abs() < 1e-6);
+        assert!((adj_ext.y_min - (-3.0)).abs() < 1e-6);
+        assert!((adj_ext.y_max - 17.0).abs() < 1e-6);
+    }
+}
+
